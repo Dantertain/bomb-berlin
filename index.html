@@ -165,7 +165,7 @@
     </div>
     <button id="voice" class="voice hidden">🎤 OR SAY "USA" / "USSR"</button>
     <div id="voice-status" class="voice-status"></div>
-    <p>Race the other side to Berlin. 30 seconds. Clear rows to hold them back.<br>Finish Off Hitler.</p>
+    <p><b>Clear 5 rows in 30 seconds to take Berlin.</b><br>Miss it and the other side gets there first.<br>Finish Off Hitler.</p>
   </div>
   <div class="game">
     <div id="berlin">
@@ -176,7 +176,7 @@
       <div class="box"><div class="label">HOLD</div><canvas id="hold" width="100" height="70"></canvas></div>
       <div class="box"><div class="label">TIME</div><div class="value" id="time">0:30</div></div>
       <div class="box"><div class="label">SCORE</div><div class="value" id="score">0</div></div>
-      <div class="box"><div class="label">LINES</div><div class="value" id="lines">0</div></div>
+      <div class="box"><div class="label">LINES</div><div class="value" id="lines">0/5</div></div>
       <div class="box"><div class="label">LEVEL</div><div class="value" id="level">1</div></div>
       <div class="box best-box"><div class="label">BEST</div><div class="value" id="best">0</div></div>
     </div>
@@ -235,7 +235,7 @@
   const COLORS = { I: "#7f9a52", O: "#b8743f", T: "#5f82a3", S: "#cbb26a", Z: "#a84a4a", J: "#4f8a86", L: "#8e8e88" };
   const LINE_SCORE = [0, 100, 300, 500, 800];
   const SIDES = { usa: { name: "USA", color: "#3d7bff" }, ru: { name: "USSR", color: "#e0393e" } };
-  const GAME_TIME = 30, END_TIME = 1.8;
+  const GAME_TIME = 30, END_TIME = 1.8, WIN_LINES = 5;
   const ENEMY_RELIEF = [0, 8, 16, 25, 36];
 
   const $ = id => document.getElementById(id);
@@ -349,6 +349,10 @@
         [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f * 1.001, 0.1, 0.05, i * 0.1));
         tone("square", 784, 785, 0.25, 0.05, 0.42);
         tone("square", 1047, 1048, 0.35, 0.05, 0.6);
+      },
+      boom(size = 1, delay = 0) {
+        tone("sine", 95, 30, 0.5 * size + 0.2, 0.6 * Math.min(1.4, size), delay);
+        burst(2400, 60, 0.6 * size + 0.3, 0.9 * Math.min(1.3, size), delay);
       },
     };
   })();
@@ -752,6 +756,11 @@
     enemy = Math.max(0, enemy - ENEMY_RELIEF[n]);
     level = Math.floor(lines / 10) + 1;
     dropMs = Math.max(60, 800 * Math.pow(0.85, level - 1));
+    if (lines >= WIN_LINES) {
+      updateStats();
+      endGame("win");
+      return;
+    }
     clearing = null;
     state = "play";
     canHold = true;
@@ -1078,7 +1087,7 @@
 
   function updateStats() {
     $("score").textContent = score;
-    $("lines").textContent = lines;
+    $("lines").textContent = `${lines}/${WIN_LINES}`;
     $("level").textContent = level;
   }
 
@@ -1122,6 +1131,9 @@
       trim();
       shake = 22; flash = 1;
       sfx.boom(1.6); sfx.boom(1.1, 0.25); sfx.boom(0.8, 0.5);
+    } else if (reason === "win") {
+      flash = 0.6;
+      sfx.jingle();
     } else {
       flash = 0.5;
       sfx.boom(0.9);
@@ -1140,12 +1152,14 @@
 
   function finishEnd() {
     state = "over";
-    enemy = 100;
+    const won = endReason === "win";
+    enemy = won ? 0 : 100;
     updateBar();
-    const why = endReason === "time" ? "Time's up."
-      : endReason === "topout" ? "Your stack collapsed."
-      : "They got there first.";
-    showOverlay(`${SIDES[enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score} · Lines ${lines}\n\nPick a side above, or:`, "PLAY AGAIN", true);
+    const why = won ? `You win! ${WIN_LINES} rows in ${Math.ceil(GAME_TIME - timeLeft)} seconds.`
+      : endReason === "time" ? `You lose. Time's up with ${lines} of ${WIN_LINES} rows.`
+      : endReason === "topout" ? "You lose. Your stack collapsed."
+      : "You lose. They got there first.";
+    showOverlay(`${SIDES[won ? side : enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score}\n\nPick a side above, or:`, "PLAY AGAIN", true);
   }
 
   // After picking a side, your side's figure wishes you luck, then the game starts.
@@ -1212,7 +1226,7 @@
       else if (enemy >= 100) { enemy = 100; endGame("taken"); }
       updateBar();
     } else if (state === "ending") {
-      enemy += (100 - enemy) * Math.min(1, dt * 2.5);
+      enemy += ((endReason === "win" ? 0 : 100) - enemy) * Math.min(1, dt * 2.5);
       endTimer -= dt;
       updateBar();
       if (endTimer <= 0) finishEnd();

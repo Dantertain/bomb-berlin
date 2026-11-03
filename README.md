@@ -6,8 +6,8 @@ A plane patrols above a burning, bombed-out city and drops clusters of bombs. St
 when a row is complete, a heavy bomber flies over and blows it up.
 
 Pick a side (USA or USSR) at the top of the screen and race the other side to Berlin. Their control of the city
-climbs steadily; clearing rows pushes them back. Each game lasts 30 seconds, and the other
-side always takes Berlin in the end — your score is how well you held them off.
+climbs steadily; clearing rows pushes them back. Clear 5 rows within 30 seconds and your side
+takes Berlin; otherwise the other side gets there first and you lose.
 
 Pick your side by clicking, or tap the microphone and say "USA" or "USSR" (in browsers with
 speech recognition, e.g. Chrome, Edge, Safari). Your side's figure wishes you luck in 8-bit
