@@ -241,6 +241,18 @@
   const COLORS = { I: "#7f9a52", O: "#b8743f", T: "#5f82a3", S: "#cbb26a", Z: "#a84a4a", J: "#4f8a86", L: "#8e8e88" };
   const LINE_SCORE = [0, 100, 300, 500, 800];
   const SIDES = { usa: { name: "USA", color: "#3d7bff" }, ru: { name: "USSR", color: "#e0393e" } };
+  const ANTHEMS = {
+    usa: { bpm: 96, notes: [
+      [65, .75], [62, .25], [58, 1], [62, 1], [65, 1], [70, 2], [74, .75], [72, .25], [70, 1], [62, 1], [64, 1], [65, 2],
+      [65, .5], [65, .5], [74, 1.5], [72, .5], [70, 1], [69, 2], [67, .5], [69, .5], [70, 1], [70, 1], [65, 1], [62, 1], [58, 2],
+    ] },
+    ru: { bpm: 108, notes: [
+      [67, 1], [72, 1.5], [71, .5], [74, .5], [72, .5], [67, .5], [64, .5], [69, 2], [65, 2],
+      [74, 1.5], [72, .5], [71, .5], [69, .5], [67, .5], [65, .5], [64, 3], [67, 1],
+      [72, 1.5], [71, .5], [74, .5], [72, .5], [67, .5], [64, .5], [69, 2], [65, 2],
+      [74, 1], [72, 1], [71, 1], [74, 1], [72, 3],
+    ] },
+  };
   const GAME_TIME = 30, END_TIME = 1.8, WIN_LINES = 5;
   const ENEMY_RELIEF = [0, 8, 16, 25, 36];
 
@@ -305,6 +317,34 @@
       s.connect(f).connect(g).connect(master);
       s.start(t, Math.random()); s.stop(t + dur + 0.05);
     }
+    let music = [];
+    function voice(type, midi, t, d, vol) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type;
+      o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.setValueAtTime(vol, t + d * 0.8);
+      g.gain.linearRampToValueAtTime(0.0001, t + d);
+      o.connect(g).connect(master);
+      o.start(t); o.stop(t + d + 0.02);
+      music.push(o);
+    }
+    function stopMusic() {
+      for (const o of music) { try { o.stop(); } catch (e) {} }
+      music = [];
+    }
+    // notes: [[midi (0 = rest), beats], ...]
+    function song({ bpm, notes }, delay = 0) {
+      stopMusic();
+      if (!ok()) return;
+      const beat = 60 / bpm;
+      let t = ac.currentTime + 0.05 + delay;
+      for (const [m, b] of notes) {
+        const d = b * beat;
+        if (m) { voice("square", m, t, d * 0.92, 0.05); voice("triangle", m - 12, t, d * 0.92, 0.08); }
+        t += d;
+      }
+    }
     function flyover(dur, dir) {
       if (!ok()) return;
       const t = ac.currentTime, lp = ac.createBiquadFilter(), g = ac.createGain();
@@ -337,7 +377,7 @@
       s.start(t); s.stop(t + dur + 0.05);
     }
     return {
-      init, flyover,
+      init, flyover, song, stopMusic,
       get muted() { return muted; },
       toggle() {
         muted = !muted;
@@ -1114,6 +1154,7 @@
 
   function start() {
     if (!side) return;
+    sfx.stopMusic();
     timeLeft = GAME_TIME; enemy = 5; lastSecs = -1;
     updateBar();
     $("picker").classList.add("hidden");
@@ -1176,9 +1217,11 @@
     const text = `${why}\nScore ${score}\n\nPick a side above, or:`;
     // Win: your side's figure congratulates you. Lose: the other side's figure taunts you.
     const who = won ? side : enemyKey();
-    const msg = who === "usa" ? (won ? "YOU WIN!" : "YOU LOSE!")
-      : (won ? "ТЫ ПОБЕДИЛ!\n(YOU WIN!)" : "ТЫ ПРОИГРАЛ!\n(YOU LOSE!)");
-    if (won) sfx.jingle(); else sfx.sad();
+    const msg = who === "usa" ? (won ? "GOOD JOB, GENERAL!" : "YOU LOSE!")
+      : (won ? "ХОРОШАЯ РАБОТА, ГЕНЕРАЛ!\n(GOOD JOB, GENERAL!)" : "ТЫ ПРОИГРАЛ!\n(YOU LOSE!)");
+    // The winning country's anthem plays (after a sad sting if you lost).
+    if (!won) sfx.sad();
+    sfx.song(ANTHEMS[who], won ? 0.2 : 1.6);
     showCard(who, msg, "Tap to continue", true, () => showOverlay(title, text, "PLAY AGAIN", true), 0);
   }
 
@@ -1201,7 +1244,7 @@
       bubble.textContent = msg.slice(0, ++i);
       if (msg[i - 1] !== "\n" && msg[i - 1] !== " ") sfx.blip();
       if (i >= msg.length) clearInterval(typeTimer);
-    }, 80);
+    }, Math.min(80, 1600 / msg.length));
     cardDone = done;
     clearTimeout(cardTimer);
     if (autoMs) cardTimer = setTimeout(finishGreet, autoMs);
