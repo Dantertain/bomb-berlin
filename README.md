@@ -1,4 +1,4 @@
-# Liberate Berlin
+# Bomb Berlin
 
 A falling-block puzzle game in a single HTML file. No build step, no dependencies.
 
