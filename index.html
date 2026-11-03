@@ -9,7 +9,7 @@
 <meta name="description" content="Bomb Berlin — a falling-block puzzle game. Pick a side, stack cluster bombs and race the other side to Berlin.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #140c0c;
@@ -81,12 +81,34 @@
     color: var(--accent); letter-spacing: 2px; text-shadow: 0 0 14px rgba(255, 120, 40, .6); }
   #overlay p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; white-space: pre-line; }
   .hidden { display: none !important; }
+  #poster { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadein .3s ease-out; }
+  .poster-card { position: relative; width: min(72vw, 44vh); padding: 14px 14px 0; background: #120c0c;
+    border: 4px solid var(--frame); box-shadow: 0 0 0 4px #000, 0 20px 60px rgba(0,0,0,.8), 0 0 40px var(--frame-glow);
+    image-rendering: pixelated; animation: pop .4s steps(4); }
+  #sprite { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 4px, transparent 4px 8px); }
+  .bubble { font-family: "Press Start 2P", ui-monospace, monospace; font-size: clamp(12px, 3.6vw, 18px); line-height: 1.4;
+    color: #000; background: #fff; padding: 10px 8px; margin-bottom: 12px; min-height: 2.9em; text-align: center;
+    box-shadow: 0 -4px 0 #fff, 0 4px 0 #fff, -4px 0 0 #fff, 4px 0 0 #fff, 0 0 0 8px #000; position: relative; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -16px; margin-left: -8px;
+    border: 8px solid transparent; border-top-color: #fff; }
+  .poster-title { font-family: "Press Start 2P", ui-monospace, monospace; font-size: clamp(10px, 3vw, 14px); letter-spacing: 1px;
+    text-align: center; padding: 12px 4px 6px; color: var(--frame); }
+  .poster-sub { text-align: center; font-family: "Press Start 2P", ui-monospace, monospace; font-size: 8px; padding: 0 4px 12px;
+    color: var(--muted); animation: blink 1s steps(2) infinite; }
+  @keyframes fadein { from { opacity: 0; } }
+  @keyframes pop { from { transform: scale(.4) rotate(-6deg); opacity: 0; } }
   button { font-family: "Black Ops One", Impact, sans-serif; font-size: 16px; color: #1a1008;
     background: linear-gradient(#ffc061, #e8892b); border: 0; border-radius: 4px; padding: 10px 20px;
     cursor: pointer; letter-spacing: 2px; box-shadow: 0 3px 0 #8a4a14; touch-action: manipulation; }
   #picker { width: 100%; max-width: 520px; margin: 8px 0 12px; text-align: center; }
   #picker h2 { margin: 0 0 10px; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 22px;
     letter-spacing: 3px; color: var(--text); text-shadow: 0 2px 0 #000; }
+  .voice { margin-top: 10px; font-size: 12px; padding: 8px 14px; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); box-shadow: none; letter-spacing: 1px; }
+  .voice.on { border-color: #ff5a4a; color: #fff; animation: blink .8s steps(2) infinite; }
+  .voice-status { min-height: 1em; margin-top: 6px; font-size: 12px; color: var(--accent); }
   #picker p { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
   .sides { display: flex; gap: 12px; justify-content: center; }
   .sides button { flex: 1 1 0; max-width: 200px; }
@@ -141,6 +163,8 @@
       <button class="usa" data-side="usa">★ USA</button>
       <button class="ru" data-side="ru">★ USSR</button>
     </div>
+    <button id="voice" class="voice hidden">🎤 OR SAY "USA" / "USSR"</button>
+    <div id="voice-status" class="voice-status"></div>
     <p>Race the other side to Berlin. 30 seconds. Clear rows to hold them back.<br>Finish Off Hitler.</p>
   </div>
   <div class="game">
@@ -185,6 +209,14 @@
   </div>
 </div>
 <canvas id="fx"></canvas>
+<div id="poster" class="hidden" role="dialog" aria-label="Good luck">
+  <div class="poster-card">
+    <div class="bubble" id="bubble"></div>
+    <canvas id="sprite" width="20" height="24"></canvas>
+    <div class="poster-title" id="poster-title"></div>
+    <div class="poster-sub">Tap to start</div>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -312,9 +344,11 @@
       release() { tone("square", 180, 90, 0.06, 0.05); burst(2200, 600, 0.05, 0.05); },
       thud() { tone("sine", 140, 45, 0.15, 0.35); burst(900, 120, 0.12, 0.25); },
       whistle(dur = 0.3) { tone("sine", 1900, 700, dur, 0.05); },
-      boom(size = 1, delay = 0) {
-        tone("sine", 95, 30, 0.5 * size + 0.2, 0.6 * Math.min(1.4, size), delay);
-        burst(2400, 60, 0.6 * size + 0.3, 0.9 * Math.min(1.3, size), delay);
+      blip() { tone("square", 880, 860, 0.04, 0.035); },
+      jingle() {
+        [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f * 1.001, 0.1, 0.05, i * 0.1));
+        tone("square", 784, 785, 0.25, 0.05, 0.42);
+        tone("square", 1047, 1048, 0.35, 0.05, 0.6);
       },
     };
   })();
@@ -452,6 +486,73 @@
     }
   }
 
+  // ---------- Good-luck greeting (original 8-bit sprites, 20x24) ----------
+  const SAM_PX = [
+    "......WWWWWWWW......",
+    "......WRWRWRWW......",
+    "......WRWRWRWW......",
+    "......WRWRWRWW......",
+    "......WRWRWRWW......",
+    "......WRWRWRWW......",
+    "......BWBBWBBW......",
+    "......BBBBBBBB......",
+    "...bbbbbbbbbbbbbb...",
+    ".....GSSSSSSSSG.....",
+    ".....GWWSSSSWWG.....",
+    ".....GSKSSSSKSG.....",
+    ".....sSSSssSSSs.....",
+    "......SSSSSSSS......",
+    "......SSRRRRSS......",
+    "......SWWWWWWS......",
+    ".......WWWWWW.......",
+    "........WWWW........",
+    ".....BBRRWWRRBB.....",
+    "....BBBBRWWRBBBB....",
+    "...BBBBBbWWbBBBBB...",
+    "..BBBBBBbWWbBBBBBB..",
+    "..BBBBBBbWWbBBBBBB..",
+    "..BBBBBBbWWbBBBBBB..",
+  ];
+  const SAM_PAL = { W: "#f4f1ea", R: "#c8202a", B: "#23408f", b: "#162b66", S: "#edc39d", s: "#d49c74", K: "#1a1a1a", G: "#dcdcdc" };
+  const STALIN_PX = [
+    "....................",
+    "....................",
+    "......HHHHHHHH......",
+    ".....HHhhhhhhHH.....",
+    "....HHHHHHHHHHHH....",
+    "....HHHHHHHHHHHH....",
+    "....HSSSSSSSSSSH....",
+    "....SSSSSSSSSSSS....",
+    "...sSKKKSSSSKKKSs...",
+    "...sSSKSSSSSSKSSs...",
+    "....SSSSSssSSSSS....",
+    "....SSSSSssSSSSS....",
+    "....SMMMMMMMMMMS....",
+    "....MMMMSSSSMMMM....",
+    ".....SSSSSSSSSS.....",
+    "......SSSSSSSS......",
+    ".......ssssss.......",
+    "......TTTTTTTT......",
+    "....YYTTTTTTTTYY....",
+    "...TTTTTTttTTTTTT...",
+    "..TTTTTTTtYTTTTRTT..",
+    "..TTTTTTTtTTTTTYTT..",
+    "..TTTTTTTtYTTTTTTT..",
+    "..TTTTTTTtTTTTTTTT..",
+  ];
+  const STALIN_PAL = { H: "#4b4541", h: "#6e6660", S: "#e2b48c", s: "#c99a72", K: "#2a2420", M: "#3b3430", T: "#cbbd8f", t: "#a49464", Y: "#d9b44a", R: "#c8202a" };
+
+  function drawSprite(cv, rows, pal) {
+    const c = cv.getContext("2d");
+    cv.width = rows[0].length; cv.height = rows.length;
+    c.clearRect(0, 0, cv.width, cv.height);
+    rows.forEach((r, y) => [...r].forEach((ch, x) => {
+      if (ch === ".") return;
+      c.fillStyle = pal[ch];
+      c.fillRect(x, y, 1, 1);
+    }));
+  }
+
   // ---------- Bombs ----------
   function bomb(c, x, y, s, color, alpha, spark) {
     const cx = x + s / 2, cy = y + s * 0.56, r = s * 0.36;
@@ -481,9 +582,27 @@
     c.globalAlpha = 1;
   }
 
+  // Grey building block ("X" cells) that stands on the board at the start.
+  function building(c, x, y, s, _color, alpha) {
+    const gx = Math.round(x / s), gy = Math.round(y / s);
+    c.globalAlpha = alpha;
+    c.fillStyle = "#5d5a57";
+    c.fillRect(x + 0.5, y, s - 1, s);
+    c.fillStyle = "#77736f";
+    c.fillRect(x + 0.5, y, s - 1, Math.max(1, s * 0.08));
+    c.fillStyle = "#3e3b39";
+    c.fillRect(x + s - 1.5, y, 1, s);
+    const w = s * 0.22, h = s * 0.26;
+    [[0.18, 0.24], [0.6, 0.24], [0.18, 0.62], [0.6, 0.62]].forEach(([wx, wy], i) => {
+      c.fillStyle = (gx * 7 + gy * 13 + i * 5) % 9 === 0 ? "#e8a24a" : "#1f1c1b";
+      c.fillRect(x + wx * s, y + wy * s, w, h);
+    });
+    c.globalAlpha = 1;
+  }
+
   // Draws struts between neighbouring bombs of the same cluster, then the bombs.
   function drawCluster(c, cells, s, ox, oy, alpha, spark) {
-    const key = new Set(cells.map(k => k.x + "," + k.y + k.t));
+    const key = new Set(cells.filter(k => k.t !== "X").map(k => k.x + "," + k.y + k.t));
     c.globalAlpha = alpha;
     c.strokeStyle = "#2a2824";
     c.lineWidth = Math.max(1.5, s * 0.12);
@@ -495,7 +614,7 @@
     }
     c.stroke();
     c.globalAlpha = 1;
-    for (const k of cells) bomb(c, ox + k.x * s + (k.jx || 0), oy + k.y * s + (k.jy || 0), s, COLORS[k.t], alpha, spark);
+    for (const k of cells) (k.t === "X" ? building : bomb)(c, ox + k.x * s + (k.jx || 0), oy + k.y * s + (k.jy || 0), s, COLORS[k.t], alpha, spark);
   }
 
   // ---------- Game state ----------
@@ -511,6 +630,23 @@
   $("best").textContent = best;
 
   const empty = () => Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+
+  // Random buildings 1-3 columns wide and 2-7 rows tall. One column is left empty
+  // (and another nearly so) so no row starts complete.
+  const MAX_BUILDING = 7;
+  function addBuildings() {
+    const heights = [];
+    for (let x = 0; x < COLS;) {
+      const w = 1 + Math.floor(Math.random() * 3), h = 2 + Math.floor(Math.random() * (MAX_BUILDING - 1));
+      for (let i = 0; i < w && x < COLS; i++) heights[x++] = h;
+    }
+    const gap = Math.floor(Math.random() * COLS);
+    let gap2 = Math.floor(Math.random() * (COLS - 1));
+    if (gap2 >= gap) gap2++;
+    heights[gap] = 0;
+    heights[gap2] = Math.floor(Math.random() * 2);
+    heights.forEach((h, x) => { for (let i = 0; i < h; i++) grid[ROWS - 1 - i][x] = "X"; });
+  }
 
   function bag() {
     const b = Object.keys(SHAPES);
@@ -960,7 +1096,8 @@
     timeLeft = GAME_TIME; enemy = 5; lastSecs = -1;
     updateBar();
     $("picker").classList.add("hidden");
-    grid = empty(); queue = []; held = null; canHold = true; clearing = null;
+    grid = empty();
+    addBuildings(); queue = []; held = null; canHold = true; clearing = null;
     score = 0; lines = 0; level = 1; dropMs = 800; acc = 0;
     state = "play";
     spawn(take());
@@ -1009,6 +1146,35 @@
       : endReason === "topout" ? "Your stack collapsed."
       : "They got there first.";
     showOverlay(`${SIDES[enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score} · Lines ${lines}\n\nPick a side above, or:`, "PLAY AGAIN", true);
+  }
+
+  // After picking a side, your side's figure wishes you luck, then the game starts.
+  let greetTimer = null, typeTimer = null;
+  const greetOpen = () => !$("poster").classList.contains("hidden");
+  function greet() {
+    const sam = side === "usa";
+    drawSprite($("sprite"), sam ? SAM_PX : STALIN_PX, sam ? SAM_PAL : STALIN_PAL);
+    $("poster-title").textContent = sam ? "UNCLE SAM" : "STALIN";
+    $("poster").classList.remove("hidden");
+    const msg = sam ? "GOOD LUCK!" : "УДАЧИ!", bubble = $("bubble");
+    let i = 0;
+    bubble.textContent = "";
+    clearInterval(typeTimer);
+    typeTimer = setInterval(() => {
+      bubble.textContent = msg.slice(0, ++i);
+      sfx.blip();
+      if (i >= msg.length) clearInterval(typeTimer);
+    }, 90);
+    sfx.jingle();
+    clearTimeout(greetTimer);
+    greetTimer = setTimeout(finishGreet, 2600);
+  }
+  function finishGreet() {
+    if (!greetOpen()) return;
+    clearTimeout(greetTimer);
+    clearInterval(typeTimer);
+    $("poster").classList.add("hidden");
+    start();
   }
 
   let lastFill = -1, lastSecs = -1;
@@ -1133,8 +1299,14 @@
   // Browsers only allow audio after the player interacts with the page.
   document.addEventListener("pointerdown", sfx.init);
 
+  $("poster").addEventListener("click", finishGreet);
+
   document.addEventListener("keydown", e => {
     sfx.init();
+    if (greetOpen()) {
+      if (e.key === "Enter" || e.key === " " || e.key === "Escape") { e.preventDefault(); finishGreet(); }
+      return;
+    }
     if (e.key === "m" || e.key === "M") { sfx.toggle(); showMute(); return; }
     if (e.key === "p" || e.key === "P" || e.key === "Escape") { togglePause(); return; }
     if ((e.key === "Enter" || e.key === " ") && (state === "over" || state === "pause" || !state)) { e.preventDefault(); $("start").click(); return; }
@@ -1156,13 +1328,56 @@
     b.addEventListener("pointercancel", stop);
   });
 
-  document.querySelectorAll("#sides button").forEach(b => b.addEventListener("click", () => {
+  function chooseSide(k) {
+    if (greetOpen() || (state && state !== "over")) return;
     sfx.init();
-    side = b.dataset.side;
+    side = k;
     document.documentElement.dataset.side = side;
     $("berlin-name").textContent = SIDES[enemyKey()].name;
-    start();
-  }));
+    greet();
+  }
+  document.querySelectorAll("#sides button").forEach(b => b.addEventListener("click", () => chooseSide(b.dataset.side)));
+
+  // Pick a side by voice where the browser supports speech recognition.
+  function sideFromSpeech(t) {
+    const s = t.toLowerCase().replace(/[^a-zа-яё]/g, "");
+    if (/ussr|soviet|russia|stalin|ссср|росси|совет/.test(s)) return "ru";
+    if (/usa|america|unitedstates|unclesam|yankee/.test(s)) return "usa";
+    return null;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const vb = $("voice"), vs = $("voice-status");
+    let rec = null;
+    vb.classList.remove("hidden");
+    vb.addEventListener("click", () => {
+      if (rec) { rec.abort(); return; }
+      rec = new SR();
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.maxAlternatives = 3;
+      vs.textContent = "Listening…";
+      vb.classList.add("on");
+      rec.onresult = e => {
+        for (const res of e.results)
+          for (const alt of res) {
+            vs.textContent = `Heard: "${alt.transcript.trim()}"`;
+            const k = sideFromSpeech(alt.transcript);
+            if (k) { rec.abort(); vs.textContent = ""; chooseSide(k); return; }
+          }
+      };
+      rec.onerror = e => {
+        vs.textContent = e.error === "not-allowed" || e.error === "service-not-allowed"
+          ? "Microphone blocked. Click a side instead." : e.error === "aborted" ? vs.textContent : "Didn't catch that. Try again.";
+      };
+      rec.onend = () => {
+        rec = null;
+        vb.classList.remove("on");
+        if (vs.textContent === "Listening…") vs.textContent = "Didn't catch that. Try again.";
+      };
+      try { rec.start(); } catch (err) { rec = null; vb.classList.remove("on"); vs.textContent = "Voice not available. Click a side."; }
+    });
+  }
 
   // Drag sideways to move, drag down to soft drop, flick down to hard drop, tap to rotate.
   let gest = null;

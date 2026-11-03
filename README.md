@@ -9,6 +9,11 @@ Pick a side (USA or USSR) at the top of the screen and race the other side to Be
 climbs steadily; clearing rows pushes them back. Each game lasts 30 seconds, and the other
 side always takes Berlin in the end — your score is how well you held them off.
 
+Pick your side by clicking, or tap the microphone and say "USA" or "USSR" (in browsers with
+speech recognition, e.g. Chrome, Edge, Safari). Your side's figure wishes you luck in 8-bit
+style before the bombs start falling. Each game starts with random grey buildings (up to
+7 rows tall) already standing, so you can start clearing rows right away.
+
 Works on phones: drag to move, tap to rotate, drag down to soft drop, flick down to hard drop.
 
 Sound effects are synthesized in the browser with the Web Audio API (no audio files).
