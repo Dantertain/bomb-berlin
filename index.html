@@ -87,17 +87,20 @@
   #poster { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
     padding: 16px; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadein .3s ease-out; }
   .poster-card { position: relative; width: min(72vw, 44vh); padding: 14px 14px 0; background: #120c0c;
-    border: 4px solid var(--frame); box-shadow: 0 0 0 4px #000, 0 20px 60px rgba(0,0,0,.8), 0 0 40px var(--frame-glow);
+    border: 4px solid var(--card, var(--frame)); box-shadow: 0 0 0 4px #000, 0 20px 60px rgba(0,0,0,.8), 0 0 40px var(--card, var(--frame));
     image-rendering: pixelated; animation: pop .4s steps(4); }
   #sprite { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges;
     background: repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 4px, transparent 4px 8px); }
   .bubble { font-family: "Press Start 2P", ui-monospace, monospace; font-size: clamp(12px, 3.6vw, 18px); line-height: 1.4;
-    color: #000; background: #fff; padding: 10px 8px; margin-bottom: 12px; min-height: 2.9em; text-align: center;
+    color: #000; background: #fff; padding: 10px 8px; margin-bottom: 12px; min-height: 2.9em; text-align: center; white-space: pre-line;
     box-shadow: 0 -4px 0 #fff, 0 4px 0 #fff, -4px 0 0 #fff, 4px 0 0 #fff, 0 0 0 8px #000; position: relative; }
   .bubble::after { content: ""; position: absolute; left: 50%; bottom: -16px; margin-left: -8px;
     border: 8px solid transparent; border-top-color: #fff; }
   .poster-title { font-family: "Press Start 2P", ui-monospace, monospace; font-size: clamp(10px, 3vw, 14px); letter-spacing: 1px;
-    text-align: center; padding: 12px 4px 6px; color: var(--frame); }
+    text-align: center; padding: 12px 4px 6px; color: var(--card, var(--frame)); }
+  #poster.big { background: rgba(0, 0, 0, .82); }
+  #poster.big .poster-card { width: min(90vw, 62vh); }
+  #poster.big .bubble { font-size: clamp(14px, 4.4vw, 24px); }
   .poster-sub { text-align: center; font-family: "Press Start 2P", ui-monospace, monospace; font-size: 8px; padding: 0 4px 12px;
     color: var(--muted); animation: blink 1s steps(2) infinite; }
   @keyframes fadein { from { opacity: 0; } }
@@ -217,7 +220,7 @@
     <div class="bubble" id="bubble"></div>
     <canvas id="sprite" width="20" height="24"></canvas>
     <div class="poster-title" id="poster-title"></div>
-    <div class="poster-sub">Tap to start</div>
+    <div class="poster-sub" id="poster-hint">Tap to start</div>
   </div>
 </div>
 
@@ -353,6 +356,10 @@
         [523, 659, 784, 1047].forEach((f, i) => tone("square", f, f * 1.001, 0.1, 0.05, i * 0.1));
         tone("square", 784, 785, 0.25, 0.05, 0.42);
         tone("square", 1047, 1048, 0.35, 0.05, 0.6);
+      },
+      sad() {
+        [[392, 0, 0.28], [370, 0.3, 0.28], [349, 0.6, 0.28]].forEach(([f, d, l]) => tone("square", f, f * 0.98, l, 0.05, d));
+        tone("square", 330, 290, 0.9, 0.05, 0.9);
       },
       boom(size = 1, delay = 0) {
         tone("sine", 95, 30, 0.5 * size + 0.2, 0.6 * Math.min(1.4, size), delay);
@@ -1165,36 +1172,54 @@
       : endReason === "time" ? `You lose. Time's up with ${lines} of ${WIN_LINES} rows.`
       : endReason === "topout" ? "You lose. Your stack collapsed."
       : "You lose. They got there first.";
-    showOverlay(`${SIDES[won ? side : enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score}\n\nPick a side above, or:`, "PLAY AGAIN", true);
+    const title = `${SIDES[won ? side : enemyKey()].name} TAKES BERLIN`;
+    const text = `${why}\nScore ${score}\n\nPick a side above, or:`;
+    // Win: your side's figure congratulates you. Lose: the other side's figure taunts you.
+    const who = won ? side : enemyKey();
+    const msg = who === "usa" ? (won ? "YOU WIN!" : "YOU LOSE!")
+      : (won ? "ТЫ ПОБЕДИЛ!\n(YOU WIN!)" : "ТЫ ПРОИГРАЛ!\n(YOU LOSE!)");
+    if (won) sfx.jingle(); else sfx.sad();
+    showCard(who, msg, "Tap to continue", true, () => showOverlay(title, text, "PLAY AGAIN", true), 0);
   }
 
-  // After picking a side, your side's figure wishes you luck, then the game starts.
-  let greetTimer = null, typeTimer = null;
+  // Full-screen 8-bit character card with a typed-out speech bubble.
+  let cardTimer = null, typeTimer = null, cardDone = null;
   const greetOpen = () => !$("poster").classList.contains("hidden");
-  function greet() {
-    const sam = side === "usa";
+  function showCard(who, msg, hint, big, done, autoMs) {
+    const sam = who === "usa";
     drawSprite($("sprite"), sam ? SAM_PX : STALIN_PX, sam ? SAM_PAL : STALIN_PAL);
     $("poster-title").textContent = sam ? "UNCLE SAM" : "STALIN";
+    $("poster-hint").textContent = hint;
+    $("poster").style.setProperty("--card", SIDES[who].color);
+    $("poster").classList.toggle("big", big);
     $("poster").classList.remove("hidden");
-    const msg = sam ? "GOOD LUCK!" : "УДАЧИ!", bubble = $("bubble");
+    const bubble = $("bubble");
     let i = 0;
     bubble.textContent = "";
     clearInterval(typeTimer);
     typeTimer = setInterval(() => {
       bubble.textContent = msg.slice(0, ++i);
-      sfx.blip();
+      if (msg[i - 1] !== "\n" && msg[i - 1] !== " ") sfx.blip();
       if (i >= msg.length) clearInterval(typeTimer);
-    }, 90);
+    }, 80);
+    cardDone = done;
+    clearTimeout(cardTimer);
+    if (autoMs) cardTimer = setTimeout(finishGreet, autoMs);
+  }
+
+  // After picking a side, your side's figure wishes you luck, then the game starts.
+  function greet() {
+    showCard(side, side === "usa" ? "GOOD LUCK!" : "УДАЧИ!", "Tap to start", false, start, 2600);
     sfx.jingle();
-    clearTimeout(greetTimer);
-    greetTimer = setTimeout(finishGreet, 2600);
   }
   function finishGreet() {
     if (!greetOpen()) return;
-    clearTimeout(greetTimer);
+    clearTimeout(cardTimer);
     clearInterval(typeTimer);
     $("poster").classList.add("hidden");
-    start();
+    const done = cardDone;
+    cardDone = null;
+    if (done) done();
   }
 
   let lastFill = -1, lastSecs = -1;
