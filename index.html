@@ -99,6 +99,9 @@
   .poster-title { font-family: "Press Start 2P", ui-monospace, monospace; font-size: clamp(10px, 3vw, 14px); letter-spacing: 1px;
     text-align: center; padding: 12px 4px 6px; color: var(--card, var(--frame)); }
   #poster.big { background: rgba(0, 0, 0, .82); }
+  #poster.passive { pointer-events: none; background: rgba(0, 0, 0, .25); animation: fadein .2s ease-out, fadeout .3s ease-in 1.3s forwards; }
+  @keyframes fadeout { to { opacity: 0; } }
+  .poster-sub:empty { display: none; }
   #poster.big .poster-card { width: min(90vw, 62vh); }
   #poster.big .bubble { font-size: clamp(14px, 4.4vw, 24px); }
   .poster-sub { text-align: center; font-family: "Press Start 2P", ui-monospace, monospace; font-size: 8px; padding: 0 4px 12px;
@@ -1338,6 +1341,7 @@
     $("poster-hint").textContent = hint;
     $("poster").style.setProperty("--card", SIDES[who].color);
     $("poster").classList.toggle("big", big);
+    $("poster").classList.toggle("passive", !big);
     $("poster").classList.remove("hidden");
     const bubble = $("bubble");
     let i = 0;
@@ -1353,9 +1357,10 @@
     if (autoMs) cardTimer = setTimeout(finishGreet, autoMs);
   }
 
-  // After picking a side, your side's figure wishes you luck, then the game starts.
+  // Picking a side starts the game at once; your side's figure wishes you luck over it.
   function greet() {
-    showCard(side, side === "usa" ? "GOOD LUCK!" : "УДАЧИ!", "Tap to start", false, start, 2600);
+    start();
+    showCard(side, side === "usa" ? "GOOD LUCK!" : "УДАЧИ!", "", false, null, 1600);
     sfx.jingle();
   }
   function finishGreet() {
@@ -1494,7 +1499,7 @@
 
   document.addEventListener("keydown", e => {
     sfx.init();
-    if (greetOpen()) {
+    if (greetOpen() && !$("poster").classList.contains("passive")) {
       if (e.key === "Enter" || e.key === " " || e.key === "Escape") { e.preventDefault(); finishGreet(); }
       return;
     }
