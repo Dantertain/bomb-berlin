@@ -2,68 +2,124 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#140c0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Bomb Berlin</title>
-<meta name="description" content="Bomb Berlin — a falling-block puzzle game. A bomber drops cluster bombs; complete a row to detonate it.">
+<meta name="description" content="Bomb Berlin — a falling-block puzzle game. Pick a side, stack cluster bombs and race the other side to Berlin.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #140c0c;
-    --panel: rgba(18, 13, 12, 0.78);
+    --panel: rgba(18, 13, 12, 0.8);
     --line: #4a3f2c;
     --text: #ece3cf;
     --muted: #a8977a;
     --accent: #ffad42;
+    --frame: #4a3f2c;
+    --frame-soft: #4a3f2c;
+    --frame-glow: rgba(255, 110, 40, .12);
+    --enemy: #8a7a5a;
+    --enemy-dark: #5a4e38;
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-    font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; overflow-x: hidden; }
+  :root[data-side="usa"] {
+    --frame: #3d7bff; --frame-soft: rgba(61, 123, 255, .55); --frame-glow: rgba(61, 123, 255, .45);
+    --enemy: #e0393e; --enemy-dark: #9a2226;
+  }
+  :root[data-side="ru"] {
+    --frame: #e0393e; --frame-soft: rgba(224, 57, 62, .55); --frame-glow: rgba(224, 57, 62, .45);
+    --enemy: #3d7bff; --enemy-dark: #2453b8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+    font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; overflow-x: hidden; overscroll-behavior: none; }
   #bg, #fx { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
   #bg { z-index: 0; }
   #fx { z-index: 5; }
   .app { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; min-height: 100vh; padding: 12px 16px; touch-action: manipulation; user-select: none; }
+    justify-content: center; min-height: 100vh; min-height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
+    touch-action: manipulation; user-select: none; -webkit-user-select: none; }
   h1 { margin: 0; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 30px;
     letter-spacing: 6px; color: var(--accent); text-shadow: 0 0 18px rgba(255, 120, 40, .55), 0 2px 0 #000; }
-  .game { display: flex; gap: 16px; align-items: flex-start; }
-  .side { display: flex; flex-direction: column; gap: 10px; width: 120px; }
-  .side.left, .side.right { margin-top: var(--lane, 70px); }
-  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 9px;
+  .game { display: grid; grid-template-columns: auto 120px auto 120px; grid-template-areas: "bar left board right";
+    gap: 14px; align-items: start; }
+  .side { display: flex; flex-direction: column; gap: 10px; margin-top: var(--lane, 70px); }
+  .side.left { grid-area: left; }
+  .side.right { grid-area: right; }
+  #board-wrap { grid-area: board; }
+  .box { background: var(--panel); border: 1px solid var(--frame-soft); border-radius: 6px; padding: 9px;
     backdrop-filter: blur(3px); box-shadow: 0 4px 18px rgba(0,0,0,.5); }
   .label { font-family: "Black Ops One", Impact, sans-serif; font-size: 11px; color: var(--muted);
     letter-spacing: 2px; margin-bottom: 4px; }
   .value { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .value.warn { color: #ff5a4a; animation: blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
   #lane { height: var(--lane, 70px); }
-  #board-box { position: relative; }
-  #board { display: block; background: rgba(10, 7, 7, 0.8); border: 2px solid var(--line); border-radius: 4px;
-    box-shadow: 0 0 0 1px #000, 0 10px 40px rgba(0,0,0,.7), 0 0 30px rgba(255, 110, 40, .12); }
+  #board-box { position: relative; touch-action: none; }
+  #board { display: block; background: rgba(10, 7, 7, 0.8); border: 2px solid var(--frame); border-radius: 4px;
+    box-shadow: 0 0 0 1px #000, 0 10px 40px rgba(0,0,0,.7), 0 0 30px var(--frame-glow); transition: border-color .4s, box-shadow .4s; }
+
+  /* Berlin control bar */
+  #berlin { grid-area: bar; margin-top: var(--lane, 70px); height: var(--board-h, 600px); width: 30px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #berlin .track { position: relative; flex: 1; width: 100%; background: var(--panel); border: 1px solid var(--frame-soft);
+    border-radius: 4px; overflow: hidden; }
+  #berlin .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+    background: repeating-linear-gradient(-45deg, var(--enemy) 0 6px, var(--enemy-dark) 6px 12px);
+    box-shadow: 0 0 12px var(--enemy); }
+  #berlin .name { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-rl; transform: rotate(180deg); font-family: "Black Ops One", Impact, sans-serif;
+    font-size: 11px; letter-spacing: 3px; color: var(--text); text-shadow: 0 1px 2px #000, 0 0 6px #000; white-space: nowrap; }
+  #berlin .pct { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
   #overlay { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 12px; background: rgba(12, 8, 8, .8); border-radius: 4px; text-align: center; padding: 16px; }
-  #overlay.hidden { display: none; }
-  #overlay h2 { margin: 0; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 26px;
-    color: var(--accent); letter-spacing: 3px; text-shadow: 0 0 14px rgba(255, 120, 40, .6); }
-  #overlay p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    justify-content: center; gap: 12px; background: rgba(12, 8, 8, .84); border-radius: 4px; text-align: center; padding: 14px; }
+  #overlay h2 { margin: 0; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 24px;
+    color: var(--accent); letter-spacing: 2px; text-shadow: 0 0 14px rgba(255, 120, 40, .6); }
+  #overlay p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; white-space: pre-line; }
+  .hidden { display: none !important; }
   button { font-family: "Black Ops One", Impact, sans-serif; font-size: 16px; color: #1a1008;
     background: linear-gradient(#ffc061, #e8892b); border: 0; border-radius: 4px; padding: 10px 20px;
-    cursor: pointer; letter-spacing: 2px; box-shadow: 0 3px 0 #8a4a14; }
+    cursor: pointer; letter-spacing: 2px; box-shadow: 0 3px 0 #8a4a14; touch-action: manipulation; }
+  .sides { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 200px; }
+  .sides button { color: #fff; padding: 12px 10px; font-size: 17px; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
+  .sides .usa { background: linear-gradient(#5c93ff, #2f5fd0); box-shadow: 0 3px 0 #1d3a80; }
+  .sides .ru { background: linear-gradient(#ff5a5e, #b8262b); box-shadow: 0 3px 0 #6e1215; }
   .keys { font-size: 11px; color: var(--muted); line-height: 1.8; }
   .mute { font-family: inherit; font-size: 11px; padding: 7px 6px; letter-spacing: 1px; color: var(--text);
-    background: var(--panel); border: 1px solid var(--line); box-shadow: none; }
-  .touch { display: none; gap: 8px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
-  .touch button { width: 62px; height: 50px; padding: 0; font-size: 20px; background: var(--panel);
-    color: var(--text); border: 1px solid var(--line); box-shadow: none; font-family: inherit; }
-  @media (max-width: 560px), (pointer: coarse) {
+    background: var(--panel); border: 1px solid var(--frame-soft); box-shadow: none; }
+  .touch { display: none; gap: 8px; margin-top: 12px; justify-content: center; }
+  .touch button { width: 62px; height: 52px; padding: 0; font-size: 22px; background: var(--panel);
+    color: var(--text); border: 1px solid var(--frame-soft); box-shadow: none; font-family: inherit; }
+  .touch button:active { background: var(--frame-soft); }
+  @media (pointer: coarse) {
     .touch { display: flex; }
     .keys { display: none; }
   }
-  @media (max-width: 560px) {
-    .game { gap: 8px; }
-    .side { width: 78px; gap: 6px; }
-    .box { padding: 6px; }
+
+  /* Phones: stats across the top, bar | board | next, big controls at the bottom */
+  @media (max-width: 620px) {
+    .app { justify-content: flex-start; padding-left: 10px; padding-right: 10px; }
+    h1 { font-size: 20px; letter-spacing: 4px; }
+    .game { grid-template-columns: auto auto auto; grid-template-areas: "left left left" "bar board right"; gap: 6px 8px; }
+    .side.left { flex-direction: row; margin-top: 4px; gap: 5px; justify-content: center; }
+    .side.left .box { padding: 4px 7px; flex: 1 1 0; min-width: 0; }
+    .side.right { gap: 6px; }
+    .side.right .box { padding: 5px; }
+    .label { font-size: 9px; letter-spacing: 1px; margin-bottom: 1px; }
     .value { font-size: 15px; }
-    h1 { font-size: 22px; }
+    .best-box, .keys { display: none; }
+    #berlin { width: 18px; }
+    #berlin .name { font-size: 9px; letter-spacing: 2px; }
+    #berlin .pct { font-size: 9px; }
+    .mute { font-size: 9px; padding: 6px 3px; letter-spacing: 0; }
+    .touch { display: grid; grid-template-columns: repeat(6, 1fr); width: 100%; max-width: 480px; gap: 6px; margin-top: 8px; }
+    .touch button { width: auto; height: 56px; }
+    #overlay h2 { font-size: 20px; }
+    #overlay p { font-size: 12px; }
   }
 </style>
 </head>
@@ -72,21 +128,32 @@
 <div class="app">
   <h1>BOMB BERLIN</h1>
   <div class="game">
+    <div id="berlin">
+      <div class="track"><div class="fill" id="berlin-fill"></div><div class="name" id="berlin-name">BERLIN</div></div>
+      <div class="pct" id="berlin-pct">0%</div>
+    </div>
     <div class="side left">
       <div class="box"><div class="label">HOLD</div><canvas id="hold" width="100" height="70"></canvas></div>
+      <div class="box"><div class="label">TIME</div><div class="value" id="time">2:00</div></div>
       <div class="box"><div class="label">SCORE</div><div class="value" id="score">0</div></div>
       <div class="box"><div class="label">LINES</div><div class="value" id="lines">0</div></div>
       <div class="box"><div class="label">LEVEL</div><div class="value" id="level">1</div></div>
-      <div class="box"><div class="label">BEST</div><div class="value" id="best">0</div></div>
+      <div class="box best-box"><div class="label">BEST</div><div class="value" id="best">0</div></div>
     </div>
     <div id="board-wrap">
       <div id="lane"></div>
       <div id="board-box">
         <canvas id="board"></canvas>
         <div id="overlay">
-          <h2 id="ov-title">BOMBS AWAY</h2>
-          <p id="ov-text">Stack the cluster bombs.<br>Fill a row to detonate it.<br>Finish Off Hitler.</p>
-          <button id="start">PLAY</button>
+          <h2 id="ov-title">CHOOSE YOUR SIDE</h2>
+          <p id="ov-text">Race the other side to Berlin.
+120 seconds. Clear rows to hold them back.
+Finish Off Hitler.</p>
+          <div class="sides" id="sides">
+            <button class="usa" data-side="usa">★ USA</button>
+            <button class="ru" data-side="ru">★ RUSSIA</button>
+          </div>
+          <button id="start" class="hidden">PLAY</button>
         </div>
       </div>
     </div>
@@ -99,12 +166,12 @@
     </div>
   </div>
   <div class="touch">
-    <button data-a="left">◀</button>
-    <button data-a="rotate">⟳</button>
-    <button data-a="right">▶</button>
-    <button data-a="down">▼</button>
-    <button data-a="drop">⤓</button>
-    <button data-a="hold">H</button>
+    <button data-a="left" aria-label="Move left">◀</button>
+    <button data-a="rotate" aria-label="Rotate">⟳</button>
+    <button data-a="right" aria-label="Move right">▶</button>
+    <button data-a="down" aria-label="Soft drop">▼</button>
+    <button data-a="drop" aria-label="Hard drop">⤓</button>
+    <button data-a="hold" aria-label="Hold">H</button>
   </div>
 </div>
 <canvas id="fx"></canvas>
@@ -125,6 +192,9 @@
   // Each piece is a cluster of bombs in its own casing color.
   const COLORS = { I: "#7f9a52", O: "#b8743f", T: "#5f82a3", S: "#cbb26a", Z: "#a84a4a", J: "#4f8a86", L: "#8e8e88" };
   const LINE_SCORE = [0, 100, 300, 500, 800];
+  const SIDES = { usa: { name: "USA", color: "#3d7bff" }, ru: { name: "RUSSIA", color: "#e0393e" } };
+  const GAME_TIME = 120, END_TIME = 1.8;
+  const ENEMY_RELIEF = [0, 3, 7, 11, 16];
 
   const $ = id => document.getElementById(id);
   const board = $("board"), ctx = board.getContext("2d");
@@ -422,6 +492,9 @@
   let CELL = 30, LANE = 70;
   let grid, piece, queue, held, canHold, score, lines, level, dropMs, acc, last, state, clearing;
   let best = 0, time = 0, shake = 0, flash = 0;
+  let side = null, enemy = 0, timeLeft = GAME_TIME, endTimer = 0, endReason = "", MINI = 1;
+  const enemyKey = () => side === "usa" ? "ru" : "usa";
+  const markColor = () => side ? SIDES[side].color : "#e8a23a";
   const parts = [];
   const plane = { x: null, dir: 1, bay: 0 };
   try { best = +localStorage.getItem("stackfall-best") || 0; } catch (e) {}
@@ -530,6 +603,7 @@
     while (grid.length < ROWS) grid.unshift(Array(COLS).fill(null));
     score += LINE_SCORE[n] * level;
     lines += n;
+    enemy = Math.max(0, enemy - ENEMY_RELIEF[n]);
     level = Math.floor(lines / 10) + 1;
     dropMs = Math.max(60, 800 * Math.pow(0.85, level - 1));
     clearing = null;
@@ -630,7 +704,7 @@
 
   function trim() { if (parts.length > 1100) parts.splice(0, parts.length - 1100); }
 
-  function drawPlane(c, x, y, w, dir, t, bay, heavy) {
+  function drawPlane(c, x, y, w, dir, t, bay, heavy, mark) {
     const L = w, Hh = w * 0.15;
     c.save();
     c.translate(x, y);
@@ -645,7 +719,7 @@
     c.beginPath();
     c.moveTo(-L * 0.3, -Hh * 0.3); c.lineTo(-L * 0.43, -Hh * 1.7); c.lineTo(-L * 0.5, -Hh * 1.7); c.lineTo(-L * 0.49, -Hh * 0.1);
     c.closePath(); c.fill();
-    c.fillStyle = "#e8a23a";
+    c.fillStyle = mark;
     c.fillRect(-L * 0.48, -Hh * 1.55, L * 0.05, Hh * 0.25);
     // far wing
     c.fillStyle = "#2c3122";
@@ -659,7 +733,7 @@
     c.fillStyle = "#3d4430";
     c.beginPath(); c.ellipse(-L * 0.42, Hh * 0.05, L * 0.1, Hh * 0.13, 0, 0, TAU); c.fill();
     // stripe band
-    c.fillStyle = "rgba(232,162,58,0.85)";
+    c.fillStyle = mark;
     c.beginPath(); c.ellipse(-L * 0.22, 0, L * 0.02, Hh * 0.48, 0, 0, TAU); c.fill();
     // cockpit
     const cg = c.createLinearGradient(0, -Hh * 0.6, 0, -Hh * 0.1);
@@ -760,13 +834,13 @@
     }
     fctx.globalCompositeOperation = "source-over";
 
-    drawPlane(fctx, plane.x, py, pw, plane.dir, time, plane.bay, false);
+    drawPlane(fctx, plane.x, py, pw, plane.dir, time, plane.bay, false, markColor());
 
     if (clearing && clearing.t <= FLY_TIME) {
       const b = bomberPos();
       if (Math.random() < dt * 30)
         parts.push({ k: "smoke", x: b.x - clearing.dir * CELL * 3.6, y: b.y, vx: -clearing.dir * 40, vy: rand(-10, 5), r: CELL * 0.2, life: 0, max: 1 });
-      drawPlane(fctx, b.x, b.y, CELL * 7.5, clearing.dir, time, 1, true);
+      drawPlane(fctx, b.x, b.y, CELL * 7.5, clearing.dir, time, 1, true, markColor());
     }
 
     if (flash > 0) {
@@ -862,14 +936,19 @@
     $("level").textContent = level;
   }
 
-  function showOverlay(title, text, btn) {
+  function showOverlay(title, text, btn, sides = false) {
     $("ov-title").textContent = title;
     $("ov-text").textContent = text;
     $("start").textContent = btn;
+    $("start").classList.toggle("hidden", !btn);
+    $("sides").classList.toggle("hidden", !sides);
     overlay.classList.remove("hidden");
   }
 
   function start() {
+    if (!side) return;
+    timeLeft = GAME_TIME; enemy = 5; lastSecs = -1;
+    updateBar();
     grid = empty(); queue = []; held = null; canHold = true; clearing = null;
     score = 0; lines = 0; level = 1; dropMs = 800; acc = 0;
     state = "play";
@@ -878,26 +957,64 @@
     overlay.classList.add("hidden");
   }
 
-  function gameOver() {
-    state = "over";
-    // The whole stack goes up.
-    for (let y = 0; y < ROWS; y++)
-      for (let x = 0; x < COLS; x++)
-        if (grid[y][x] && Math.random() < 0.35) {
-          const [cx, cy] = cellCenter(x, y);
-          const a = Math.random() * TAU, sp = rand(40, 180);
-          parts.push({ k: "fire", x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: CELL * rand(0.4, 0.8), life: -rand(0, 0.5), max: rand(0.6, 1) });
-          parts.push({ k: "smoke", x: cx, y: cy, vx: rand(-20, 20), vy: rand(-50, -20), r: CELL * 0.5, life: -rand(0, 0.5), max: rand(1.5, 2.2) });
-        }
-    trim();
-    shake = 22; flash = 1;
-    sfx.boom(1.6); sfx.boom(1.1, 0.25); sfx.boom(0.8, 0.5);
+  function gameOver() { endGame("topout"); }
+
+  function endGame(reason) {
+    if (state === "ending" || state === "over") return;
+    if (reason === "topout") {
+      // The whole stack goes up.
+      for (let y = 0; y < ROWS; y++)
+        for (let x = 0; x < COLS; x++)
+          if (grid[y][x] && Math.random() < 0.35) {
+            const [cx, cy] = cellCenter(x, y);
+            const a = Math.random() * TAU, sp = rand(40, 180);
+            parts.push({ k: "fire", x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: CELL * rand(0.4, 0.8), life: -rand(0, 0.5), max: rand(0.6, 1) });
+            parts.push({ k: "smoke", x: cx, y: cy, vx: rand(-20, 20), vy: rand(-50, -20), r: CELL * 0.5, life: -rand(0, 0.5), max: rand(1.5, 2.2) });
+          }
+      trim();
+      shake = 22; flash = 1;
+      sfx.boom(1.6); sfx.boom(1.1, 0.25); sfx.boom(0.8, 0.5);
+    } else {
+      flash = 0.5;
+      sfx.boom(0.9);
+    }
+    state = "ending";
+    endReason = reason;
+    endTimer = END_TIME;
+    piece = null;
+    clearing = null;
     if (score > best) {
       best = score;
       try { localStorage.setItem("stackfall-best", best); } catch (e) {}
       $("best").textContent = best;
     }
-    showOverlay("GAME OVER", `Score ${score} · Lines ${lines}`, "PLAY AGAIN");
+  }
+
+  function finishEnd() {
+    state = "over";
+    enemy = 100;
+    updateBar();
+    const why = endReason === "time" ? "Time's up."
+      : endReason === "topout" ? "Your stack collapsed."
+      : "They got there first.";
+    showOverlay(`${SIDES[enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score} · Lines ${lines}\n\nPlay again or switch sides:`, "", true);
+  }
+
+  let lastFill = -1, lastSecs = -1;
+  function updateBar() {
+    const f = Math.round(enemy * 10) / 10;
+    if (f !== lastFill) {
+      lastFill = f;
+      $("berlin-fill").style.height = f + "%";
+      $("berlin-pct").textContent = Math.round(f) + "%";
+    }
+    const secs = Math.ceil(timeLeft);
+    if (secs !== lastSecs) {
+      lastSecs = secs;
+      const t = $("time");
+      t.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+      t.classList.toggle("warn", secs <= 10 && secs > 0);
+    }
   }
 
   function togglePause() {
@@ -906,9 +1023,23 @@
   }
 
   function loop(t) {
-    const dt = Math.min(0.05, (t - last) / 1000 || 0);
+    const realDt = Math.min(0.5, (t - last) / 1000 || 0);
+    const dt = Math.min(0.05, realDt);
     last = t;
     time = t / 1000;
+    if (state === "play" || state === "clearing") {
+      // The clock runs on real time so slow devices still end at 120 seconds.
+      timeLeft -= realDt;
+      enemy += (0.45 + 0.55 * (GAME_TIME - timeLeft) / GAME_TIME) * realDt;
+      if (timeLeft <= 0) { timeLeft = 0; endGame("time"); }
+      else if (enemy >= 100) { enemy = 100; endGame("taken"); }
+      updateBar();
+    } else if (state === "ending") {
+      enemy += (100 - enemy) * Math.min(1, dt * 2.5);
+      endTimer -= dt;
+      updateBar();
+      if (endTimer <= 0) finishEnd();
+    }
     if (state === "play" && piece) {
       acc += dt * 1000;
       while (acc >= dropMs && state === "play" && piece) {
@@ -942,29 +1073,38 @@
   }
 
   // ---------- Layout ----------
-  function sizeCanvas(cv, c, w, h) {
-    cv.style.width = w + "px"; cv.style.height = h + "px";
-    cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR);
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  function sizeCanvas(cv, c, w, h, s = 1) {
+    cv.style.width = w * s + "px"; cv.style.height = h * s + "px";
+    cv.width = Math.round(w * s * DPR); cv.height = Math.round(h * s * DPR);
+    c.setTransform(DPR * s, 0, 0, DPR * s, 0, 0);
   }
 
   function resize() {
     DPR = window.devicePixelRatio || 1;
     W = window.innerWidth; H = window.innerHeight;
-    const narrow = W <= 560;
-    const touch = matchMedia("(pointer: coarse)").matches || narrow ? 74 : 0;
-    const maxH = H - 70 - touch;
-    const maxW = W - (narrow ? 2 * 78 + 16 + 32 : 2 * 120 + 32 + 32);
-    CELL = Math.max(14, Math.min(34, Math.floor(Math.min(maxH / (ROWS + 2.3), maxW / COLS))));
+    const narrow = W <= 620;
+    const coarse = matchMedia("(pointer: coarse)").matches;
+    MINI = narrow ? 0.55 : 1;
+    let maxH, maxW;
+    if (narrow) {
+      // title + stat row + touch controls + gaps
+      maxH = H - 30 - 50 - 70 - 40;
+      maxW = W - 20 - 18 - (100 * MINI + 12) - 16 - 4;
+    } else {
+      maxH = H - 70 - (coarse ? 76 : 0);
+      maxW = W - (30 + 2 * 120 + 3 * 14 + 32 + 4);
+    }
+    CELL = Math.max(12, Math.min(34, Math.floor(Math.min(maxH / (ROWS + 2.3), maxW / COLS))));
     LANE = Math.round(CELL * 2.3);
     document.documentElement.style.setProperty("--lane", LANE + "px");
+    document.documentElement.style.setProperty("--board-h", ROWS * CELL + 4 + "px");
     sizeCanvas(board, ctx, COLS * CELL, ROWS * CELL);
     sizeCanvas(bg, bctx, W, H);
     sizeCanvas(fx, fctx, W, H);
     for (const [cv, c] of [[holdCv, holdCtx], [nextCv, nextCtx]]) {
       cv.dataset.w = cv.dataset.w || cv.width;
       cv.dataset.h = cv.dataset.h || cv.height;
-      sizeCanvas(cv, c, +cv.dataset.w, +cv.dataset.h);
+      sizeCanvas(cv, c, +cv.dataset.w, +cv.dataset.h, MINI);
     }
     city = buildCity(W, H);
     smoke = [];
@@ -1004,6 +1144,39 @@
     b.addEventListener("pointerleave", stop);
     b.addEventListener("pointercancel", stop);
   });
+
+  document.querySelectorAll("#sides button").forEach(b => b.addEventListener("click", () => {
+    sfx.init();
+    side = b.dataset.side;
+    document.documentElement.dataset.side = side;
+    $("berlin-name").textContent = SIDES[enemyKey()].name;
+    start();
+  }));
+
+  // Drag sideways to move, drag down to soft drop, flick down to hard drop, tap to rotate.
+  let gest = null;
+  boardBox.addEventListener("pointerdown", e => {
+    if (state !== "play" || e.target.closest("#overlay")) return;
+    gest = { x: e.clientX, y: e.clientY, t: performance.now(), mx: 0, my: 0, moved: false };
+    try { boardBox.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  boardBox.addEventListener("pointermove", e => {
+    if (!gest) return;
+    const step = CELL * 0.9;
+    const sx = Math.trunc((e.clientX - gest.x) / step), sy = Math.trunc((e.clientY - gest.y) / step);
+    while (sx > gest.mx) { act("right"); gest.mx++; gest.moved = true; }
+    while (sx < gest.mx) { act("left"); gest.mx--; gest.moved = true; }
+    while (sy > gest.my) { act("down"); gest.my++; gest.moved = true; }
+  });
+  const endGesture = e => {
+    if (!gest) return;
+    const dt = performance.now() - gest.t, dy = e.clientY - gest.y, dx = e.clientX - gest.x;
+    if (dy > CELL * 2 && dy / dt > 0.8 && Math.abs(dx) < dy) act("drop");
+    else if (!gest.moved && dt < 300) act("rotate");
+    gest = null;
+  };
+  boardBox.addEventListener("pointerup", endGesture);
+  boardBox.addEventListener("pointercancel", () => { gest = null; });
 
   $("start").addEventListener("click", () => { if (state === "pause") togglePause(); else start(); });
   window.addEventListener("resize", resize);
