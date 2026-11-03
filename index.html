@@ -115,8 +115,22 @@
     border: 1px solid var(--line); box-shadow: none; letter-spacing: 1px; }
   .voice.on { border-color: #ff5a4a; color: #fff; animation: blink .8s steps(2) infinite; }
   .voice-status { min-height: 1em; margin-top: 6px; font-size: 12px; color: var(--accent); }
+  .goal { display: block; margin-bottom: 6px; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal;
+    font-size: 22px; line-height: 1.3; letter-spacing: 1px; color: var(--accent); text-shadow: 0 0 12px rgba(255, 120, 40, .5), 0 2px 0 #000; }
   #picker p { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
   .sides { display: flex; gap: 12px; justify-content: center; }
+  .sides button { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .mini-sprite { width: 60px; height: 72px; image-rendering: pixelated; image-rendering: crisp-edges;
+    background: rgba(0,0,0,.25); border: 2px solid rgba(0,0,0,.35); }
+  /* After a game: the picker becomes a centered panel with the result and Play Again. */
+  #picker.modal { position: fixed; z-index: 25; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0;
+    width: min(92vw, 520px); max-height: 94vh; overflow-y: auto; padding: 18px 16px; background: rgba(14, 10, 10, .96);
+    border: 3px solid var(--frame); border-radius: 6px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .6), 0 0 40px var(--frame-glow); }
+  #result h2 { margin: 0 0 6px; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 26px;
+    letter-spacing: 2px; color: var(--accent); text-shadow: 0 0 14px rgba(255, 120, 40, .6); }
+  #result p { margin: 0 0 14px; white-space: pre-line; color: var(--text); }
+  #again { font-size: 18px; padding: 12px 28px; }
+  .or { margin: 14px 0 10px; color: var(--muted); font-size: 12px; letter-spacing: 2px; }
   .sides button { flex: 1 1 0; max-width: 200px; }
   .sides button { color: #fff; padding: 12px 10px; font-size: 17px; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
   .sides .usa { background: linear-gradient(#5c93ff, #2f5fd0); box-shadow: 0 3px 0 #1d3a80; }
@@ -155,7 +169,10 @@
     #overlay p { font-size: 12px; }
     #picker { margin: 6px 0 8px; }
     #picker h2 { font-size: 17px; margin-bottom: 8px; }
+    .mini-sprite { width: 44px; height: 53px; }
+    #result h2 { font-size: 20px; }
     #picker p { font-size: 11px; margin-top: 8px; }
+    .goal { font-size: 16px; }
   }
 </style>
 </head>
@@ -164,14 +181,20 @@
 <div class="app picking">
   <h1>BOMB BERLIN</h1>
   <div id="picker">
+    <div id="result" class="hidden">
+      <h2 id="res-title"></h2>
+      <p id="res-text"></p>
+      <button id="again">PLAY AGAIN</button>
+      <div class="or">— OR —</div>
+    </div>
     <h2>CHOOSE YOUR SIDE</h2>
     <div class="sides" id="sides">
-      <button class="usa" data-side="usa">★ USA</button>
-      <button class="ru" data-side="ru">★ USSR</button>
+      <button class="usa" data-side="usa"><canvas class="mini-sprite" data-who="usa"></canvas><span>★ USA</span></button>
+      <button class="ru" data-side="ru"><canvas class="mini-sprite" data-who="ru"></canvas><span>★ USSR</span></button>
     </div>
     <button id="voice" class="voice hidden">🎤 OR SAY "USA" / "USSR"</button>
     <div id="voice-status" class="voice-status"></div>
-    <p><b>Clear 5 rows in 30 seconds to take Berlin.</b><br>Miss it and the other side gets there first.<br>Finish Off Hitler.</p>
+    <p><b class="goal">Clear 5 rows in 30 seconds to take Berlin.</b>Miss it and the other side gets there first.<br>Finish Off Hitler.</p>
   </div>
   <div class="game">
     <div id="berlin">
@@ -1158,6 +1181,8 @@
     timeLeft = GAME_TIME; enemy = 5; lastSecs = -1;
     updateBar();
     $("picker").classList.add("hidden");
+    $("picker").classList.remove("modal");
+    $("result").classList.add("hidden");
     app.classList.remove("picking");
     grid = empty();
     addBuildings(); queue = []; held = null; canHold = true; clearing = null;
@@ -1214,7 +1239,7 @@
       : endReason === "topout" ? "You lose. Your stack collapsed."
       : "You lose. They got there first.";
     const title = `${SIDES[won ? side : enemyKey()].name} TAKES BERLIN`;
-    const text = `${why}\nScore ${score}\n\nPick a side above, or:`;
+    const text = `${why}\nScore ${score}`;
     // Win: your side's figure congratulates you. Lose: the other side's figure taunts you.
     const who = won ? side : enemyKey();
     const msg = who === "usa" ? (won ? "GOOD JOB, GENERAL!" : "YOU LOSE!")
@@ -1222,7 +1247,16 @@
     // The winning country's anthem plays (after a sad sting if you lost).
     if (!won) sfx.sad();
     sfx.song(ANTHEMS[who], won ? 0.2 : 1.6);
-    showCard(who, msg, "Tap to continue", true, () => showOverlay(title, text, "PLAY AGAIN", true), 0);
+    showCard(who, msg, "Tap to continue", true, () => showResult(title, text), 0);
+  }
+
+  function showResult(title, text) {
+    $("res-title").textContent = title;
+    $("res-text").textContent = text;
+    $("result").classList.remove("hidden");
+    $("voice-status").textContent = "";
+    $("picker").classList.add("modal");
+    $("picker").classList.remove("hidden");
   }
 
   // Full-screen 8-bit character card with a typed-out speech bubble.
@@ -1492,10 +1526,14 @@
   boardBox.addEventListener("pointerup", endGesture);
   boardBox.addEventListener("pointercancel", () => { gest = null; });
 
+  $("again").addEventListener("click", () => start());
+
   $("start").addEventListener("click", () => { if (state === "pause") togglePause(); else start(); });
   window.addEventListener("resize", resize);
   document.addEventListener("visibilitychange", () => { if (document.hidden && state === "play") togglePause(); });
 
+  document.querySelectorAll(".mini-sprite").forEach(cv =>
+    cv.dataset.who === "usa" ? drawSprite(cv, SAM_PX, SAM_PAL) : drawSprite(cv, STALIN_PX, STALIN_PAL));
   resize();
   requestAnimationFrame(t => { last = t; loop(t); });
 })();
