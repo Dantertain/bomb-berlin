@@ -84,7 +84,12 @@
   button { font-family: "Black Ops One", Impact, sans-serif; font-size: 16px; color: #1a1008;
     background: linear-gradient(#ffc061, #e8892b); border: 0; border-radius: 4px; padding: 10px 20px;
     cursor: pointer; letter-spacing: 2px; box-shadow: 0 3px 0 #8a4a14; touch-action: manipulation; }
-  .sides { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 200px; }
+  #picker { width: 100%; max-width: 520px; margin: 8px 0 12px; text-align: center; }
+  #picker h2 { margin: 0 0 10px; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 22px;
+    letter-spacing: 3px; color: var(--text); text-shadow: 0 2px 0 #000; }
+  #picker p { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .sides { display: flex; gap: 12px; justify-content: center; }
+  .sides button { flex: 1 1 0; max-width: 200px; }
   .sides button { color: #fff; padding: 12px 10px; font-size: 17px; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
   .sides .usa { background: linear-gradient(#5c93ff, #2f5fd0); box-shadow: 0 3px 0 #1d3a80; }
   .sides .ru { background: linear-gradient(#ff5a5e, #b8262b); box-shadow: 0 3px 0 #6e1215; }
@@ -120,6 +125,9 @@
     .touch button { width: auto; height: 56px; }
     #overlay h2 { font-size: 20px; }
     #overlay p { font-size: 12px; }
+    #picker { margin: 6px 0 8px; }
+    #picker h2 { font-size: 17px; margin-bottom: 8px; }
+    #picker p { font-size: 11px; margin-top: 8px; }
   }
 </style>
 </head>
@@ -127,6 +135,14 @@
 <canvas id="bg"></canvas>
 <div class="app">
   <h1>BOMB BERLIN</h1>
+  <div id="picker">
+    <h2>CHOOSE YOUR SIDE</h2>
+    <div class="sides" id="sides">
+      <button class="usa" data-side="usa">★ USA</button>
+      <button class="ru" data-side="ru">★ USSR</button>
+    </div>
+    <p>Race the other side to Berlin. 30 seconds. Clear rows to hold them back.<br>Finish Off Hitler.</p>
+  </div>
   <div class="game">
     <div id="berlin">
       <div class="track"><div class="fill" id="berlin-fill"></div><div class="name" id="berlin-name">BERLIN</div></div>
@@ -134,7 +150,7 @@
     </div>
     <div class="side left">
       <div class="box"><div class="label">HOLD</div><canvas id="hold" width="100" height="70"></canvas></div>
-      <div class="box"><div class="label">TIME</div><div class="value" id="time">2:00</div></div>
+      <div class="box"><div class="label">TIME</div><div class="value" id="time">0:30</div></div>
       <div class="box"><div class="label">SCORE</div><div class="value" id="score">0</div></div>
       <div class="box"><div class="label">LINES</div><div class="value" id="lines">0</div></div>
       <div class="box"><div class="label">LEVEL</div><div class="value" id="level">1</div></div>
@@ -144,15 +160,9 @@
       <div id="lane"></div>
       <div id="board-box">
         <canvas id="board"></canvas>
-        <div id="overlay">
-          <h2 id="ov-title">CHOOSE YOUR SIDE</h2>
-          <p id="ov-text">Race the other side to Berlin.
-120 seconds. Clear rows to hold them back.
-Finish Off Hitler.</p>
-          <div class="sides" id="sides">
-            <button class="usa" data-side="usa">★ USA</button>
-            <button class="ru" data-side="ru">★ RUSSIA</button>
-          </div>
+        <div id="overlay" class="hidden">
+          <h2 id="ov-title"></h2>
+          <p id="ov-text"></p>
           <button id="start" class="hidden">PLAY</button>
         </div>
       </div>
@@ -192,9 +202,9 @@ Finish Off Hitler.</p>
   // Each piece is a cluster of bombs in its own casing color.
   const COLORS = { I: "#7f9a52", O: "#b8743f", T: "#5f82a3", S: "#cbb26a", Z: "#a84a4a", J: "#4f8a86", L: "#8e8e88" };
   const LINE_SCORE = [0, 100, 300, 500, 800];
-  const SIDES = { usa: { name: "USA", color: "#3d7bff" }, ru: { name: "RUSSIA", color: "#e0393e" } };
-  const GAME_TIME = 120, END_TIME = 1.8;
-  const ENEMY_RELIEF = [0, 3, 7, 11, 16];
+  const SIDES = { usa: { name: "USA", color: "#3d7bff" }, ru: { name: "USSR", color: "#e0393e" } };
+  const GAME_TIME = 30, END_TIME = 1.8;
+  const ENEMY_RELIEF = [0, 8, 16, 25, 36];
 
   const $ = id => document.getElementById(id);
   const board = $("board"), ctx = board.getContext("2d");
@@ -941,7 +951,7 @@ Finish Off Hitler.</p>
     $("ov-text").textContent = text;
     $("start").textContent = btn;
     $("start").classList.toggle("hidden", !btn);
-    $("sides").classList.toggle("hidden", !sides);
+    $("picker").classList.toggle("hidden", !sides);
     overlay.classList.remove("hidden");
   }
 
@@ -949,6 +959,7 @@ Finish Off Hitler.</p>
     if (!side) return;
     timeLeft = GAME_TIME; enemy = 5; lastSecs = -1;
     updateBar();
+    $("picker").classList.add("hidden");
     grid = empty(); queue = []; held = null; canHold = true; clearing = null;
     score = 0; lines = 0; level = 1; dropMs = 800; acc = 0;
     state = "play";
@@ -997,7 +1008,7 @@ Finish Off Hitler.</p>
     const why = endReason === "time" ? "Time's up."
       : endReason === "topout" ? "Your stack collapsed."
       : "They got there first.";
-    showOverlay(`${SIDES[enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score} · Lines ${lines}\n\nPlay again or switch sides:`, "", true);
+    showOverlay(`${SIDES[enemyKey()].name} TAKES BERLIN`, `${why}\nScore ${score} · Lines ${lines}\n\nPick a side above, or:`, "PLAY AGAIN", true);
   }
 
   let lastFill = -1, lastSecs = -1;
@@ -1028,9 +1039,9 @@ Finish Off Hitler.</p>
     last = t;
     time = t / 1000;
     if (state === "play" || state === "clearing") {
-      // The clock runs on real time so slow devices still end at 120 seconds.
+      // The clock runs on real time so slow devices still end on time.
       timeLeft -= realDt;
-      enemy += (0.45 + 0.55 * (GAME_TIME - timeLeft) / GAME_TIME) * realDt;
+      enemy += (0.45 + 0.55 * (GAME_TIME - timeLeft) / GAME_TIME) * (120 / GAME_TIME) * realDt;
       if (timeLeft <= 0) { timeLeft = 0; endGame("time"); }
       else if (enemy >= 100) { enemy = 100; endGame("taken"); }
       updateBar();
