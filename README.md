@@ -1,4 +1,4 @@
-# Bomb Berlin
+# Liberate Berlin
 
 A falling-block puzzle game in a single HTML file. No build step, no dependencies.
 
@@ -6,7 +6,8 @@ A plane patrols above a burning, bombed-out city and drops clusters of bombs. St
 when a row is complete, a heavy bomber flies over and blows it up.
 
 Pick a side (USA or USSR) at the top of the screen and race the other side to Berlin. Their control of the city
-climbs steadily; clearing rows pushes them back. Clear 5 rows within 30 seconds and your side
+climbs steadily; clearing rows pushes them back. Level 1 needs 5 rows within 30 seconds; each
+level you win adds one more row (6, 7, ...). Hit the target and your side
 takes Berlin; otherwise the other side gets there first and you lose.
 
 Pick your side by clicking, or tap the microphone and say "USA" or "USSR" (in browsers with
