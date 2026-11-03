@@ -10,4 +10,4 @@ Sound effects are synthesized in the browser with the Web Audio API (no audio fi
 **Controls:** ← → move · ↑ / X rotate · Z rotate back · ↓ soft drop · Space hard drop · C / Shift hold · P pause · M mute.
 On phones, use the on-screen buttons.
 
-Play it at https://dantertain.github.io/stackfall/ (GitHub Pages, served from the `main` branch).
+Play it at https://dantertain.github.io/bomb-berlin/ (GitHub Pages, served from the `main` branch).
