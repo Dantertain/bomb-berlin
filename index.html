@@ -81,6 +81,9 @@
     color: var(--accent); letter-spacing: 2px; text-shadow: 0 0 14px rgba(255, 120, 40, .6); }
   #overlay p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; white-space: pre-line; }
   .hidden { display: none !important; }
+  /* Until a side is chosen, only the title and side picker show. */
+  .app.picking .game, .app.picking .touch { display: none !important; }
+  .app.picking #picker { margin-top: 18px; }
   #poster { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
     padding: 16px; background: rgba(0, 0, 0, .6); cursor: pointer; animation: fadein .3s ease-out; }
   .poster-card { position: relative; width: min(72vw, 44vh); padding: 14px 14px 0; background: #120c0c;
@@ -155,7 +158,7 @@
 </head>
 <body>
 <canvas id="bg"></canvas>
-<div class="app">
+<div class="app picking">
   <h1>BOMB BERLIN</h1>
   <div id="picker">
     <h2>CHOOSE YOUR SIDE</h2>
@@ -242,6 +245,7 @@
   const board = $("board"), ctx = board.getContext("2d");
   const bg = $("bg"), bctx = bg.getContext("2d");
   const fx = $("fx"), fctx = fx.getContext("2d");
+  const app = document.querySelector(".app");
   const lane = $("lane"), boardBox = $("board-box"), overlay = $("overlay");
   const holdCv = $("hold"), nextCv = $("next");
   const holdCtx = holdCv.getContext("2d"), nextCtx = nextCv.getContext("2d");
@@ -927,6 +931,7 @@
 
   function drawFx(dt) {
     fctx.clearRect(0, 0, W, H);
+    if (app.classList.contains("picking")) return;
     const lr = lane.getBoundingClientRect();
     const target = piece
       ? lr.left + 2 + (piece.x + piece.m[0].length / 2) * CELL
@@ -1105,6 +1110,7 @@
     timeLeft = GAME_TIME; enemy = 5; lastSecs = -1;
     updateBar();
     $("picker").classList.add("hidden");
+    app.classList.remove("picking");
     grid = empty();
     addBuildings(); queue = []; held = null; canHold = true; clearing = null;
     score = 0; lines = 0; level = 1; dropMs = 800; acc = 0;
