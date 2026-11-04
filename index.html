@@ -197,7 +197,7 @@
     </div>
     <button id="voice" class="voice hidden">🎤 OR SAY "USA" / "USSR"</button>
     <div id="voice-status" class="voice-status"></div>
-    <p><b class="goal" id="goal">Level 1: clear 5 rows in 30 seconds to take Berlin.</b>Miss it and the other side gets there first.<br>Finish Off Hitler.</p>
+    <p><b class="goal" id="goal">Level 1: clear 5 rows in 60 seconds to take Berlin.</b>Miss it and the other side gets there first.<br>Finish Off Hitler.</p>
   </div>
   <div class="game">
     <div id="berlin">
@@ -206,7 +206,7 @@
     </div>
     <div class="side left">
       <div class="box"><div class="label">HOLD</div><canvas id="hold" width="100" height="70"></canvas></div>
-      <div class="box"><div class="label">TIME</div><div class="value" id="time">0:30</div></div>
+      <div class="box"><div class="label">TIME</div><div class="value" id="time">1:00</div></div>
       <div class="box"><div class="label">SCORE</div><div class="value" id="score">0</div></div>
       <div class="box"><div class="label">LINES</div><div class="value" id="lines">0/5</div></div>
       <div class="box"><div class="label">LEVEL</div><div class="value" id="level">1</div></div>
@@ -267,6 +267,18 @@
   const COLORS = { I: "#7f9a52", O: "#b8743f", T: "#5f82a3", S: "#cbb26a", Z: "#a84a4a", J: "#4f8a86", L: "#8e8e88" };
   const LINE_SCORE = [0, 100, 300, 500, 800];
   const SIDES = { usa: { name: "USA", color: "#3d7bff" }, ru: { name: "USSR", color: "#e0393e" } };
+  // Opening-screen theme: Yankee Doodle (traditional, public domain), looped.
+  const C5 = 72, B4 = 71, A4 = 69, G4 = 67, F4 = 65, E4 = 64, D5 = 74, E5 = 76, F5 = 77;
+  const TITLE_THEME = { bpm: 116, notes: [
+    [C5,.5],[C5,.5],[D5,.5],[E5,.5],[C5,.5],[E5,.5],[D5,.5],[G4,.5],
+    [C5,.5],[C5,.5],[D5,.5],[E5,.5],[C5,1],[B4,1],
+    [C5,.5],[C5,.5],[D5,.5],[E5,.5],[F5,.5],[E5,.5],[D5,.5],[C5,.5],
+    [B4,.5],[G4,.5],[A4,.5],[B4,.5],[C5,1],[C5,1],
+    [A4,.75],[B4,.25],[A4,.5],[G4,.5],[A4,.5],[B4,.5],[C5,1],
+    [G4,.75],[A4,.25],[G4,.5],[F4,.5],[E4,1],[G4,1],
+    [A4,.75],[B4,.25],[A4,.5],[G4,.5],[A4,.5],[B4,.5],[C5,.5],[A4,.5],
+    [G4,.5],[C5,.5],[B4,.5],[D5,.5],[C5,1],[C5,1],[0,1],
+  ] };
   const ANTHEMS = {
     usa: { bpm: 96, notes: [
       [65, .75], [62, .25], [58, 1], [62, 1], [65, 1], [70, 2], [74, .75], [72, .25], [70, 1], [62, 1], [64, 1], [65, 2],
@@ -279,11 +291,11 @@
       [74, 1], [72, 1], [71, 1], [74, 1], [72, 3],
     ] },
   };
-  const GAME_TIME = 30, END_TIME = 1.8, FIRST_GOAL = 5;
+  const GAME_TIME = 60, END_TIME = 1.8, FIRST_GOAL = 5;
   let mission = 1;
   const goal = () => FIRST_GOAL + mission - 1;
   function showGoal() {
-    $("goal").textContent = `Level ${mission}: clear ${goal()} rows in 30 seconds to take Berlin.`;
+    $("goal").textContent = `Level ${mission}: clear ${goal()} rows in 60 seconds to take Berlin.`;
   }
   const ENEMY_RELIEF = [0, 8, 16, 25, 36];
 
@@ -360,7 +372,9 @@
       o.start(t); o.stop(t + d + 0.02);
       music.push(o);
     }
+    let themeTimer = null;
     function stopMusic() {
+      clearTimeout(themeTimer); themeTimer = null;
       for (const o of music) { try { o.stop(); } catch (e) {} }
       music = [];
     }
@@ -376,6 +390,14 @@
         t += d;
       }
     }
+    // Loops a tune until stopMusic() is called.
+    function loopSong(tune) {
+      song(tune);
+      if (!ok()) return;
+      const len = tune.notes.reduce((a, n) => a + n[1], 0) * 60 / tune.bpm;
+      themeTimer = setTimeout(() => loopSong(tune), len * 1000);
+    }
+    const running = () => !!ac && ac.state === "running";
     let tens = null;
     const TENSION_BASS = [45, 45, 46, 44];
     function note(type, midi, t, d, vol) {
@@ -467,7 +489,7 @@
       s.start(t); s.stop(t + dur + 0.05);
     }
     return {
-      init, flyover, song, stopMusic, startTension, stopTension,
+      init, flyover, song, loopSong, running, stopMusic, startTension, stopTension,
       get muted() { return muted; },
       toggle() {
         muted = !muted;
@@ -1491,9 +1513,24 @@
   const muteBtn = $("mute");
   const showMute = () => { muteBtn.textContent = sfx.muted ? "🔇 SOUND OFF" : "🔊 SOUND ON"; };
   showMute();
-  muteBtn.addEventListener("click", () => { sfx.init(); sfx.toggle(); showMute(); muteBtn.blur(); });
-  // Browsers only allow audio after the player interacts with the page.
-  document.addEventListener("pointerdown", sfx.init);
+  muteBtn.addEventListener("click", () => {
+    sfx.init(); sfx.toggle(); showMute(); muteBtn.blur();
+    if (sfx.muted) { if (onTitle()) { sfx.stopMusic(); themeOn = false; } } else titleTheme();
+  });
+  // Browsers only allow audio after the player interacts with the page,
+  // so the title theme starts on load if allowed, otherwise on the first tap or key.
+  let themeOn = false;
+  const onTitle = () => app.classList.contains("picking") && !state;
+  function titleTheme() {
+    if (themeOn || !onTitle() || sfx.muted) return;
+    sfx.init();
+    if (!sfx.running()) return;
+    themeOn = true;
+    sfx.loopSong(TITLE_THEME);
+  }
+  document.addEventListener("pointerdown", () => { sfx.init(); setTimeout(titleTheme, 0); });
+  document.addEventListener("keydown", () => setTimeout(titleTheme, 0));
+  sfx.init(); setTimeout(titleTheme, 50);
 
   $("poster").addEventListener("click", finishGreet);
 
