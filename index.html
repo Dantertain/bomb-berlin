@@ -133,6 +133,17 @@
     letter-spacing: 2px; color: var(--accent); text-shadow: 0 0 14px rgba(255, 120, 40, .6); }
   #result p { margin: 0 0 14px; white-space: pre-line; color: var(--text); }
   #again { font-size: 18px; padding: 12px 28px; }
+  #victory { position: fixed; z-index: 26; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(92vw, 480px); padding: 22px 18px; text-align: center; background: rgba(14, 10, 10, .97);
+    border: 3px solid #e8b94a; border-radius: 6px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .7), 0 0 50px rgba(232, 185, 74, .5); }
+  #victory .icon { font-size: 84px; line-height: 1; filter: drop-shadow(0 0 18px rgba(255, 200, 60, .8)); animation: pop .6s ease-out; }
+  #victory h2 { margin: 12px 0 6px; font-family: "Black Ops One", Impact, sans-serif; font-weight: normal; font-size: 26px;
+    letter-spacing: 1px; color: #ffd36a; line-height: 1.25; }
+  #victory p { margin: 0 0 16px; color: var(--text); white-space: pre-line; }
+  #victory .ask { font-family: "Press Start 2P", ui-monospace, monospace; font-size: 12px; line-height: 1.6; color: #fff; margin: 6px 0 14px; }
+  #victory .yn { display: flex; gap: 12px; justify-content: center; }
+  #victory .yn button { font-size: 18px; padding: 12px 30px; }
+  @keyframes pop { 0% { transform: scale(.2); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
   .or { margin: 14px 0 10px; color: var(--muted); font-size: 12px; letter-spacing: 2px; }
   .sides button { flex: 1 1 0; max-width: 200px; }
   .sides button { color: #fff; padding: 12px 10px; font-size: 17px; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
@@ -242,6 +253,16 @@
   </div>
 </div>
 <canvas id="fx"></canvas>
+<div id="victory" class="hidden" role="dialog" aria-label="Victory">
+  <div class="icon" aria-hidden="true">🏆</div>
+  <h2 id="vic-title">You Took Berlin!<br>The War Is Over!<br>Well Done!</h2>
+  <p id="vic-text"></p>
+  <div id="vic-ask">
+    <div class="ask">Want to start the Cold War?</div>
+    <div class="yn"><button id="cw-yes">YES</button><button id="cw-no">NO</button></div>
+  </div>
+  <button id="vic-new" class="hidden">NEW WAR</button>
+</div>
 <div id="poster" class="hidden" role="dialog" aria-label="Good luck">
   <div class="poster-card">
     <div class="bubble" id="bubble"></div>
@@ -293,10 +314,13 @@
     ] },
   };
   const GAME_TIME = 60, END_TIME = 1.8, FIRST_GOAL = 5;
-  let mission = 1;
+  const FINAL_LEVEL = 10;
+  let mission = 1, coldWar = false, newWarOnAgain = false;
   const goal = () => FIRST_GOAL + mission - 1;
   function showGoal() {
-    $("goal").textContent = `Level ${mission}: clear ${goal()} rows in 60 seconds to take Berlin.`;
+    $("goal").textContent = coldWar
+      ? `Cold War Level ${mission}: clear ${goal()} rows in 60 seconds. Faster every level.`
+      : `Level ${mission}: clear ${goal()} rows in 60 seconds to take Berlin.`;
   }
   const ENEMY_RELIEF = [0, 8, 16, 25, 36];
 
@@ -1277,7 +1301,8 @@
     $("music").classList.add("hidden");
     grid = empty();
     addBuildings(); queue = []; held = null; canHold = true; clearing = null;
-    score = 0; lines = 0; level = mission; dropMs = 800; acc = 0;
+    score = 0; lines = 0; level = mission; acc = 0;
+    dropMs = coldWar ? Math.max(110, 800 - (mission - FINAL_LEVEL) * 70) : 800;
     state = "play";
     spawn(take());
     updateStats();
@@ -1327,6 +1352,9 @@
     enemy = won ? 0 : 100;
     updateBar();
     const target = goal();
+    const beatFinal = won && !coldWar && mission === FINAL_LEVEL;
+    const coldWarLost = !won && coldWar;
+    const reached = mission;
     if (won) mission++;
     showGoal();
     $("again").textContent = won ? "NEXT LEVEL" : "TRY AGAIN";
@@ -1343,8 +1371,52 @@
     // The winning country's anthem plays (after a sad sting if you lost).
     if (!won) sfx.sad();
     sfx.song(ANTHEMS[who], won ? 0.2 : 1.6);
+    if (beatFinal) {
+      showCard(who, msg, "Tap to continue", true, () => showVictory(score), 0);
+      return;
+    }
+    if (coldWarLost) {
+      newWarOnAgain = true;
+      $("again").textContent = "NEW WAR";
+      const cwText = `${why}\nYou held out until Cold War Level ${reached}.\nScore ${score}`;
+      showCard(who, msg, "Tap to continue", true, () => showResult("THE COLD WAR IS OVER", cwText), 0);
+      return;
+    }
     showCard(who, msg, "Tap to continue", true, () => showResult(title, text), 0);
   }
+
+  // After Level 10: the war is won. Offer the endless Cold War mode.
+  function showVictory(sc) {
+    $("vic-title").innerHTML = "You Took Berlin!<br>The War Is Over!<br>Well Done!";
+    $("vic-text").textContent = `All ${FINAL_LEVEL} levels cleared.\nScore ${sc}`;
+    $("vic-ask").classList.remove("hidden");
+    $("vic-new").classList.add("hidden");
+    $("victory").classList.remove("hidden");
+    sfx.jingle();
+  }
+  function resetWar() {
+    mission = 1; coldWar = false; newWarOnAgain = false;
+    showGoal();
+  }
+  $("cw-yes").addEventListener("click", () => {
+    $("victory").classList.add("hidden");
+    coldWar = true;           // mission is already 11
+    showGoal();
+    start();
+    showCard(enemyKey(), side === "usa" ? "ХОЛОДНАЯ ВОЙНА!\n(THE COLD WAR BEGINS!)" : "THE COLD WAR BEGINS!", "", false, null, 1800);
+  });
+  $("cw-no").addEventListener("click", () => {
+    $("vic-title").innerHTML = "YOU WIN THE GAME!";
+    $("vic-text").textContent = "Peace in Europe. Thanks for playing, General.";
+    $("vic-ask").classList.add("hidden");
+    $("vic-new").classList.remove("hidden");
+    sfx.song(ANTHEMS[side], 0.1);
+  });
+  $("vic-new").addEventListener("click", () => {
+    $("victory").classList.add("hidden");
+    resetWar();
+    start();
+  });
 
   function showResult(title, text) {
     $("res-title").textContent = title;
@@ -1427,7 +1499,8 @@
     if (state === "play" || state === "clearing") {
       // The clock runs on real time so slow devices still end on time.
       timeLeft -= realDt;
-      enemy += (0.45 + 0.55 * (GAME_TIME - timeLeft) / GAME_TIME) * (120 / GAME_TIME) * realDt;
+      enemy += (0.45 + 0.55 * (GAME_TIME - timeLeft) / GAME_TIME) * (120 / GAME_TIME) * realDt
+        * (coldWar ? 1 + 0.08 * (mission - FINAL_LEVEL) : 1);
       if (timeLeft <= 0) { timeLeft = 0; endGame("time"); }
       else if (enemy >= 100) { enemy = 100; endGame("taken"); }
       updateBar();
@@ -1650,7 +1723,7 @@
   boardBox.addEventListener("pointerup", endGesture);
   boardBox.addEventListener("pointercancel", () => { gest = null; });
 
-  $("again").addEventListener("click", () => start());
+  $("again").addEventListener("click", () => { if (newWarOnAgain) resetWar(); start(); });
 
   $("start").addEventListener("click", () => { if (state === "pause") togglePause(); else start(); });
   window.addEventListener("resize", resize);
