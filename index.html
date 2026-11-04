@@ -195,6 +195,7 @@
       <button class="usa" data-side="usa"><canvas class="mini-sprite" data-who="usa"></canvas><span>★ USA</span></button>
       <button class="ru" data-side="ru"><canvas class="mini-sprite" data-who="ru"></canvas><span>★ USSR</span></button>
     </div>
+    <button id="music" class="voice">🎵 PLAY MUSIC</button>
     <button id="voice" class="voice hidden">🎤 OR SAY "USA" / "USSR"</button>
     <div id="voice-status" class="voice-status"></div>
     <p><b class="goal" id="goal">Level 1: clear 5 rows in 60 seconds to take Berlin.</b>Miss it and the other side gets there first.<br>Finish Off Hitler.</p>
@@ -1273,6 +1274,7 @@
     $("picker").classList.remove("modal");
     $("result").classList.add("hidden");
     app.classList.remove("picking");
+    $("music").classList.add("hidden");
     grid = empty();
     addBuildings(); queue = []; held = null; canHold = true; clearing = null;
     score = 0; lines = 0; level = mission; dropMs = 800; acc = 0;
@@ -1521,16 +1523,27 @@
   // so the title theme starts on load if allowed, otherwise on the first tap or key.
   let themeOn = false;
   const onTitle = () => app.classList.contains("picking") && !state;
-  function titleTheme() {
+  const musicBtn = $("music");
+  const showMusic = () => { musicBtn.textContent = themeOn ? "🔇 STOP MUSIC" : "🎵 PLAY MUSIC"; };
+  function titleTheme(tries = 0) {
     if (themeOn || !onTitle() || sfx.muted) return;
     sfx.init();
-    if (!sfx.running()) return;
+    // Audio unlocks a moment after the click; retry briefly until it does.
+    if (!sfx.running()) { if (tries < 10) setTimeout(() => titleTheme(tries + 1), 100); return; }
     themeOn = true;
     sfx.loopSong(TITLE_THEME);
+    showMusic();
   }
-  document.addEventListener("pointerdown", () => { sfx.init(); setTimeout(titleTheme, 0); });
-  document.addEventListener("keydown", () => setTimeout(titleTheme, 0));
-  sfx.init(); setTimeout(titleTheme, 50);
+  musicBtn.addEventListener("pointerdown", e => e.stopPropagation());
+  musicBtn.addEventListener("click", () => {
+    sfx.init();
+    if (themeOn) { sfx.stopMusic(); themeOn = false; showMusic(); }
+    else { if (sfx.muted) { sfx.toggle(); showMute(); } titleTheme(); }
+    musicBtn.blur();
+  });
+  document.addEventListener("pointerdown", () => { sfx.init(); setTimeout(() => titleTheme(), 0); });
+  document.addEventListener("keydown", () => setTimeout(() => titleTheme(), 0));
+  sfx.init(); setTimeout(() => titleTheme(), 50);
 
   $("poster").addEventListener("click", finishGreet);
 
